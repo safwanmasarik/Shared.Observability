@@ -2,13 +2,10 @@
 Add Observability into all our microservices with Serilog &amp; Seq for our application's distributed microservices logging &amp; tracing. 
 Guide below only for local development to increase productivity e.g. quickly identify errors.
 
-Here I want to share how to add Observability into all our microservices with Serilog & Seq for our application logging & distributed tracing.
-Guide below only for local development to increase productivity e.g. quickly identify errors.
-
 Preview of Seq dashboard:
 ![image](https://github.com/user-attachments/assets/578c9f1a-f8b7-44b1-8cbd-0d7db3ba7477)
 
-Guide:
+## Guide
 1. Run Seq container, example via `docker-compose.yml` file, run command via terminal `docker compose up -d`.
 ```yaml	
 seq:
@@ -28,6 +25,7 @@ dotnet add package OpenTelemetry.Exporter.OpenTelemetryProtocol
 dotnet add package OpenTelemetry.Extensions.Hosting
 dotnet add package OpenTelemetry.Instrumentation.AspNetCore
 dotnet add package OpenTelemetry.Instrumentation.Http
+dotnet add package OpenTelemetry.Instrumentation.SqlClient --version 1.11.0-beta.2
 dotnet add package Serilog.AspNetCore
 dotnet add package Serilog.Enrichers.Span
 dotnet add package Serilog.Sinks.Seq
@@ -37,6 +35,7 @@ dotnet add package Serilog.Sinks.Seq
 <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.12.0" />
 <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.11.1" />
 <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.11.1" />
+<PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" Version="1.11.0-beta.2" />
 <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
 <PackageReference Include="Serilog.Enrichers.Span" Version="3.1.0" />
 <PackageReference Include="Serilog.Sinks.Seq" Version="9.0.0" />
@@ -57,53 +56,60 @@ namespace Shared.Observability;
 
 public static class ObservabilityExtensions
 {
-    public static void AddObservabilityWithSeq(this WebApplicationBuilder builder, string serviceName, Action<LoggerConfiguration>? addSerilogConfig = null)
+    public static void AddObservabilityWithSeq(
+        this WebApplicationBuilder builder,
+        string serviceName,
+        Action<LoggerConfiguration>? modifySerilogConfig = null,
+        Action<TracerProviderBuilder>? modifyTracingConfig = null)
     {
-	// Configure Serilog with TraceId + SpanId enrichment
-	var loggerConfig = new LoggerConfiguration()
-	    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
-	    .MinimumLevel.Override("System", LogEventLevel.Information)
-	    .Enrich.WithProperty("service", serviceName)
-	    .Enrich.WithSpan()
-	    .WriteTo.Console()
-	    .WriteTo.Seq("http://localhost:5342");
+        // Configure Serilog with TraceId + SpanId enrichment
+        var loggerConfig = new LoggerConfiguration()
+            .MinimumLevel.Debug()
+            .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+            .MinimumLevel.Override("System", LogEventLevel.Information)
+            .Enrich.WithProperty("service", serviceName)
+            .Enrich.WithSpan()
+            .WriteTo.Console()
+            .WriteTo.Seq("http://localhost:5342");
 
-	// Apply additional Serilog configuration
-	addSerilogConfig?.Invoke(loggerConfig);
+        // Modify Serilog configuration from the caller
+        modifySerilogConfig?.Invoke(loggerConfig);
 
-	Log.Logger = loggerConfig.CreateLogger();
+        Log.Logger = loggerConfig.CreateLogger();
 
-	builder.Host.UseSerilog();
+        builder.Host.UseSerilog();
 
-	// Optional: OpenTelemetry for distributed Activity tracking
-	builder.Services.AddOpenTelemetry()
-	    .ConfigureResource(resource => resource.AddService(serviceName))
-	    .WithTracing(tracing =>
-	    {
-		tracing
-		    .AddAspNetCoreInstrumentation(options =>
-		    {
-			options.Filter = httpContext =>
-			{
-			    var path = httpContext.Request.Path.Value;
-			    return !(path.Contains("health") ||
-				     path.Contains("favicon") ||
-				     path.Contains(".js") ||
-				     path.Contains(".css") ||
-				     path.Contains("swagger") ||
-				     path.Contains("metrics") ||
-				     path.Contains("images")
-				     );
-			};
-		    })
-		    .AddHttpClientInstrumentation()
-		    .AddSource("MassTransit")
-		    .AddOtlpExporter(option =>
-		    {
-			option.Endpoint = new Uri("http://localhost:5341/ingest/otlp/v1/traces");
-			option.Protocol = OtlpExportProtocol.HttpProtobuf;
-		    });
-	    });
+        // OpenTelemetry for distributed Activity tracking
+        builder.Services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddService(serviceName))
+            .WithTracing(tracing =>
+            {
+                tracing
+                    .AddAspNetCoreInstrumentation(options =>
+                    {
+                        options.Filter = httpContext =>
+                        {
+                            var path = httpContext.Request.Path.Value;
+                            return !(path.Contains("health") ||
+                                     path.Contains("favicon") ||
+                                     path.Contains(".js") ||
+                                     path.Contains(".css") ||
+                                     path.Contains("swagger") ||
+                                     path.Contains("metrics") ||
+                                     path.Contains("images")
+                                     );
+                        };
+                    })
+                    .AddHttpClientInstrumentation()
+                    .AddOtlpExporter(option =>
+                    {
+                        option.Endpoint = new Uri("http://localhost:5341/ingest/otlp/v1/traces");
+                        option.Protocol = OtlpExportProtocol.HttpProtobuf;
+                    });
+
+                // Modify tracing configuration from the caller
+                modifyTracingConfig?.Invoke(tracing);
+            });
     }
 }
 ```
@@ -119,5 +125,27 @@ public static class ObservabilityExtensions
 builder.AddObservabilityWithSeq(serviceName: "Api.Auth");
 ```
 
-7. Happy coding!
+7. Optionally, you can modify the default extension methods configuration from the caller. Below code will run after the default settings.
+```cs
+// Add observability
+builder.AddObservabilityWithSeq(
+    serviceName: "Api.Order",
+    modifySerilogConfig: loggerConfig =>
+    {
+        loggerConfig
+            .MinimumLevel.Debug()
+            .MinimumLevel.Override("Microsoft", LogEventLevel.Error)
+            .MinimumLevel.Override("System", LogEventLevel.Error);
+    },
+    modifyTracingConfig: tracing =>
+    {
+        tracing.AddSource("MassTransit");
+        tracing.AddSqlClientInstrumentation();
+    }
+);
+```
+
+8. You can browse to `http://localhost:5341/#/events?deletionEnabled&tail` to view the Seq dashboard and start monitoring!
+
+9. Happy coding!
 
