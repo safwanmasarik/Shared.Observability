@@ -19,6 +19,7 @@ public static class ObservabilityExtensions
     {
         // Configure Serilog with TraceId + SpanId enrichment
         var loggerConfig = new LoggerConfiguration()
+            .MinimumLevel.Debug()
             .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
             .MinimumLevel.Override("System", LogEventLevel.Information)
             .Enrich.WithProperty("service", serviceName)
