@@ -125,7 +125,7 @@ public static class ObservabilityExtensions
 builder.AddObservabilityWithSeq(serviceName: "Api.Auth");
 ```
 
-7. Optionally, you can modify the default extension methods configuration from the caller. Below code will run after the default settings.
+7. Optionally, you can modify the default extension methods configuration from the caller. Below modification code will run after the default settings.
 ```cs
 // Add observability
 builder.AddObservabilityWithSeq(
