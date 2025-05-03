@@ -11,7 +11,11 @@ namespace Shared.Observability;
 
 public static class ObservabilityExtensions
 {
-    public static void AddObservabilityWithSeq(this WebApplicationBuilder builder, string serviceName, Action<LoggerConfiguration>? addSerilogConfig = null)
+    public static void AddObservabilityWithSeq(
+        this WebApplicationBuilder builder,
+        string serviceName,
+        Action<LoggerConfiguration>? modifySerilogConfig = null,
+        Action<TracerProviderBuilder>? modifyTracingConfig = null)
     {
         // Configure Serilog with TraceId + SpanId enrichment
         var loggerConfig = new LoggerConfiguration()
@@ -22,14 +26,14 @@ public static class ObservabilityExtensions
             .WriteTo.Console()
             .WriteTo.Seq("http://localhost:5342");
 
-        // Apply additional Serilog configuration
-        addSerilogConfig?.Invoke(loggerConfig);
+        // Modify Serilog configuration from the caller
+        modifySerilogConfig?.Invoke(loggerConfig);
 
         Log.Logger = loggerConfig.CreateLogger();
 
         builder.Host.UseSerilog();
 
-        // Optional: OpenTelemetry for distributed Activity tracking
+        // OpenTelemetry for distributed Activity tracking
         builder.Services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService(serviceName))
             .WithTracing(tracing =>
@@ -51,12 +55,14 @@ public static class ObservabilityExtensions
                         };
                     })
                     .AddHttpClientInstrumentation()
-                    .AddSource("MassTransit")
                     .AddOtlpExporter(option =>
                     {
                         option.Endpoint = new Uri("http://localhost:5341/ingest/otlp/v1/traces");
                         option.Protocol = OtlpExportProtocol.HttpProtobuf;
                     });
+
+                // Modify tracing configuration from the caller
+                modifyTracingConfig?.Invoke(tracing);
             });
     }
 }
