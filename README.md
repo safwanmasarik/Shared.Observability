@@ -4,6 +4,7 @@ Guide below only for local development to increase productivity e.g. quickly ide
 
 Here I want to share how to add Observability into all our microservices with Serilog & Seq for our application logging & distributed tracing.
 Guide below only for local development to increase productivity e.g. quickly identify errors.
+
 Preview of Seq dashboard:
 ![image](https://github.com/user-attachments/assets/578c9f1a-f8b7-44b1-8cbd-0d7db3ba7477)
 
