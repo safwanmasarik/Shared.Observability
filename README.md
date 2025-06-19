@@ -9,7 +9,7 @@ Preview of Seq dashboard:
 1. Run Seq container, example via `docker-compose.yml` file, run command via terminal `docker compose up -d`.
 ```yaml	
 seq:
-    image: datalust/seq:latest
+    image: datalust/seq:2024.3
     ports:
       - "5341:80"      # Web UI
       - "5342:5341"    # Ingest logs
@@ -25,7 +25,6 @@ dotnet add package OpenTelemetry.Exporter.OpenTelemetryProtocol
 dotnet add package OpenTelemetry.Extensions.Hosting
 dotnet add package OpenTelemetry.Instrumentation.AspNetCore
 dotnet add package OpenTelemetry.Instrumentation.Http
-dotnet add package OpenTelemetry.Instrumentation.SqlClient --version 1.11.0-beta.2
 dotnet add package Serilog.AspNetCore
 dotnet add package Serilog.Enrichers.Span
 dotnet add package Serilog.Sinks.Seq
@@ -35,7 +34,6 @@ dotnet add package Serilog.Sinks.Seq
 <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.12.0" />
 <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.11.1" />
 <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.11.1" />
-<PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" Version="1.11.0-beta.2" />
 <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
 <PackageReference Include="Serilog.Enrichers.Span" Version="3.1.0" />
 <PackageReference Include="Serilog.Sinks.Seq" Version="9.0.0" />
